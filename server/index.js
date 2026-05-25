@@ -16,11 +16,17 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/chatapp';
 
 // CLIENT_URL can be a single origin or comma-separated list
-const allowedOrigins = CLIENT_URL.split(',').map((s) => s.trim()).filter(Boolean);
+const normalizeOrigin = (s) => s.replace(/\/+$/, '');
+const allowedOrigins = CLIENT_URL.split(',')
+  .map((s) => normalizeOrigin(s.trim()))
+  .filter(Boolean);
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // curl / server-to-server / health checks
+  return allowedOrigins.includes(normalizeOrigin(origin));
+};
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // curl / server-to-server / health checks
-    if (allowedOrigins.includes(origin)) return cb(null, true);
+    if (isAllowedOrigin(origin)) return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
   credentials: true,
@@ -43,7 +49,13 @@ app.use((err, _req, res, _next) => {
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: allowedOrigins, credentials: true },
+  cors: {
+    origin: (origin, cb) => {
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      cb(new Error(`CORS: origin ${origin} not allowed`));
+    },
+    credentials: true,
+  },
 });
 initSocket(io);
 app.set('io', io);

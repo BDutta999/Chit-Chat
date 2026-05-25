@@ -15,8 +15,19 @@ const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/chatapp';
 
+// CLIENT_URL can be a single origin or comma-separated list
+const allowedOrigins = CLIENT_URL.split(',').map((s) => s.trim()).filter(Boolean);
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // curl / server-to-server / health checks
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+};
+
 const app = express();
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (_, res) => res.json({ ok: true, time: Date.now() }));
@@ -32,7 +43,7 @@ app.use((err, _req, res, _next) => {
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: CLIENT_URL, credentials: true },
+  cors: { origin: allowedOrigins, credentials: true },
 });
 initSocket(io);
 app.set('io', io);
